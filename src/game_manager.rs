@@ -1,5 +1,8 @@
 use std::default::Default;
 
+pub const PROBABILITIES: [f32; 5] =
+    [1.0 / 16.0, 4.0 / 16.0, 6.0 / 16.0, 4.0 / 16.0, 1.0 / 16.0];
+
 // For the board, cells are indexed by their place in a path. The path is, for
 // each player, the sequence of fourteen cells that must be traversed to move
 // pieces out. Here is a representation of the indexes of the cells:
@@ -26,7 +29,7 @@ pub const fn is_rosetta(idx: usize) -> bool {
 const CENTRAL_ROSETTA: usize = 7;
 
 // The special value used to represent a piece that enters the board.
-const ENTER: usize = 14;
+pub const ENTER: usize = 14;
 
 #[derive(Clone)]
 pub struct Board {
@@ -151,7 +154,7 @@ impl Board {
         moves
     }
 
-    pub fn perform_move(&mut self, dice: usize, place: usize) {
+    pub fn perform_move(&mut self, dice: usize, place: usize) -> bool {
         // Making a new piece enter
         if place == ENTER {
             self.cells[self.turn][dice - 1] = true;
@@ -159,12 +162,19 @@ impl Board {
             if !is_rosetta(dice - 1) {
                 self.turn = 1 - self.turn;
             }
+            false
         }
         // Moving out a piece
         else if place + dice == 14 {
             self.cells[self.turn][place] = false;
             self.out[self.turn] += 1;
-            self.turn = 1 - self.turn;
+            if self.out[self.turn] == 7 {
+                true
+            }
+            else {
+                self.turn = 1 - self.turn;
+                false
+            }
         }
         // Otherwise
         else {
@@ -179,6 +189,7 @@ impl Board {
             if !is_rosetta(place + dice) {
                 self.turn = 1 - self.turn;
             }
+            false
         }
     }
 
