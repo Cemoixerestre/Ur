@@ -2,6 +2,18 @@ use crate::game_manager::*;
 
 use crate::strategy::*;
 
+// The approximation that is going to be trained.
+// To evaluate a board, the value for the player that is going to play is:
+// val_ready * (board.ready[player] - board.ready[adv]) +
+// val_out * (board.out[player] - board.out[adv]) +
+// Σ (i, board.cells[player][i] = true) values[i] -
+// Σ (i, board.cells[adv][i] = true) values[i] +
+// player_adv
+//
+// Where player = board.turn
+//       adv    = 1 - board.turn
+//
+// The value for the other player is the opposite.
 #[derive(Default)]
 pub struct LinearEval0 {
     pub val_ready: f32,
@@ -9,6 +21,8 @@ pub struct LinearEval0 {
     pub val_out: f32,
     pub player_adv: f32,
 }
+// TODO: take the hyperbolic tangent of the sum, so that the value is between
+// -1 and 1.
 
 impl Heuristic for LinearEval0 {
     fn victory() -> f32 {
@@ -37,6 +51,7 @@ impl Heuristic for LinearEval0 {
 }
 
 impl LinearEval0 {
+    // Display the current values of the parameters.
     pub fn disp(&self) {
         println!("READY: {}", self.val_ready);
         for i in 0..4 {
@@ -52,8 +67,11 @@ impl LinearEval0 {
         println!("ADV  : {}", self.player_adv);
     }
 
-    pub fn step(&mut self, board: &Board, to: f32, alpha: f32) {
-        let diff = alpha * (to - self.eval(board));
+    // Given a board, do a gradient descent step to shift the evaluation of the
+    // board closer to a target value.
+    // alpha is the (supposedly low) learning coefficient.
+    pub fn step(&mut self, board: &Board, target: f32, alpha: f32) {
+        let diff = alpha * (target - self.eval(board));
 
         let player = board.turn;
         let adv = 1 - player;

@@ -1,11 +1,19 @@
 use crate::game_manager::*;
 
+// A heuristic gives an evaluation to each board. The highest the heuristic is,
+// the better the board is supposed to be. It then can be plugged into an
+// an expectimax algorithm.
+// The evaluation is always computed in the side of the player that is supposed
+// to play. The evaluation of the other player is the opposite.
 pub trait Heuristic {
-    fn victory() -> f32;
+    fn victory() -> f32; // The special value for the victory.
     fn eval(&self, board: &Board) -> f32;
     // fn move(&self, board: &Board);
 }
 
+// The heuristic currently used on the website. This heuristic is the
+// sum of the advancement of the player's pieces minus the sum of the
+// advancement of the adversary's pieces.
 pub struct SimpleHeuristic {}
 
 impl Heuristic for SimpleHeuristic {
@@ -59,6 +67,8 @@ pub fn expectimax<H: Heuristic>(h: &H, board: &Board, depth: u32) -> f32 {
     res
 }
 
+// Given a dice roll and the place of a piece that is going to be played,
+// returns the expectimax evaluation of the next board.
 pub fn eval_move<H>(
     h: &H,
     board: &Board,
@@ -81,8 +91,10 @@ where H: Heuristic
     }
 }
 
+// Return the evaluation of a board after a roll dice that prevents the player
+// from doing anything (for example, after a 0 roll).
 fn eval_no_move<H: Heuristic>(h: &H, board: &Board, depth: u32) -> f32 {
     let mut copy = board.clone();
-    copy.turn = 1 - copy.turn;
+    copy.change_turn();
     -expectimax(h, &copy, depth)
 }

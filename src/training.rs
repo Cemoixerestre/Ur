@@ -21,10 +21,10 @@ fn main() {
         loop {
             let expectimax_val = expectimax(&evaluator, &board, 1);
             evaluator.step(&board, expectimax_val, ALPHA);
-            let dice = roll_dice(&mut rng);
+            let dice = roll_dices(&mut rng);
             let moves = board.possible_moves(dice);
             if moves.is_empty() {
-                board.turn = 1 - board.turn;
+                board.change_turn();
                 continue;
             }
             let mut best_move = moves[0];

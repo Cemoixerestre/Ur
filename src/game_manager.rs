@@ -1,7 +1,22 @@
 use std::default::Default;
+use rand::Rng;
 
+// The probability of getting each dice results.
 pub const PROBABILITIES: [f32; 5] =
     [1.0 / 16.0, 4.0 / 16.0, 6.0 / 16.0, 4.0 / 16.0, 1.0 / 16.0];
+
+// Simulate the roll of four dices.
+pub fn roll_dices<R: Rng>(rng: &mut R) -> usize {
+    let mut x = rng.gen_range(0..16);
+    let mut dice = 0;
+    for _ in 0..4 {
+        dice += x & 1;
+        x >>= 1;
+    }
+
+    dice
+}
+
 
 // For the board, cells are indexed by their place in a path. The path is, for
 // each player, the sequence of fourteen cells that must be traversed to move
@@ -36,9 +51,11 @@ pub struct Board {
     // The number of pieces that have not been played for each player.
     pub ready: [u8; 2],
     // cells[i]: the path for player i.
+    // cells[i][j] is true if player i has a piece at index j.
     pub cells: [[bool; 14]; 2],
     // The number of pieces out of the board for each player.
     pub out: [u8; 2],
+    // The index of the player that is to play, either 0 or 1.
     pub turn: usize,
 }
 
@@ -116,11 +133,19 @@ impl Board {
         println!("Player X: {} ready / {} out", self.ready[1], self.out[1]);
     }
 
+    // Given a dice result, returns the vectors of pieces that can be moved
+    // given a dice result. Pieces are represented by their index. If a piece
+    // can be moved in, the value ENTER is contained.
+    //
+    // If a piece can enter, the first element of this vector is `ENTER`. Then,
+    // the indices are contained in increasing order.
     pub fn possible_moves(&self, dice: usize) -> Vec<usize> {
         if dice == 0 {
             return Vec::new();
         }
 
+        // The first four indices are 0, 1, 2 and 3. Therefore, with dices
+        // result d, a piece enters at place d - 1.
         let mut moves = Vec::new();
         if self.ready[self.turn] > 0 && !self.cells[self.turn][dice - 1] {
             moves.push(ENTER);
@@ -144,8 +169,8 @@ impl Board {
                 continue;
             }
             if i + dice == CENTRAL_ROSETTA &&
-                // The opponent occupies the central rosetta
                self.cells[1 - self.turn][CENTRAL_ROSETTA] {
+                // The opponent occupies the central rosetta
                 continue;
             }
             moves.push(i);
@@ -154,13 +179,20 @@ impl Board {
         moves
     }
 
+    // Moves the piece at index `place` by `dice` cells. The player that
+    // is to play may change.
+    //
+    // This function does not check whether the input move is legal. Please
+    // ensure that this move comes from the vector `self.possible_moves(dice)`.
+    //
+    // Returns true if this move is a winning move, false otherwise.
     pub fn perform_move(&mut self, dice: usize, place: usize) -> bool {
         // Making a new piece enter
         if place == ENTER {
             self.cells[self.turn][dice - 1] = true;
             self.ready[self.turn] -= 1;
             if !is_rosetta(dice - 1) {
-                self.turn = 1 - self.turn;
+                self.change_turn();
             }
             false
         }
@@ -172,7 +204,7 @@ impl Board {
                 true
             }
             else {
-                self.turn = 1 - self.turn;
+                self.change_turn();
                 false
             }
         }
@@ -187,10 +219,16 @@ impl Board {
                self.ready[1 - self.turn] += 1;
             }
             if !is_rosetta(place + dice) {
-                self.turn = 1 - self.turn;
+                self.change_turn();
             }
             false
         }
+    }
+
+    // Change the player turn.
+    // It may be used if a player cannot move because of the dice result.
+    pub fn change_turn(&mut self) {
+        self.turn = 1 - self.turn;
     }
 
     pub fn finished(&self) -> bool {

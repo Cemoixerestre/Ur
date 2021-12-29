@@ -10,8 +10,12 @@ edition = "2018"
 rand = "0.8"
 
 [profile.dev]
-opt-level = 3
+opt-level = 2
 
 [[bin]]
 name = "main"
 path = "src/main.rs"
+
+[[bin]]
+name = "training"
+path = "src/training.rs"

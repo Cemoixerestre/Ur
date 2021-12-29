@@ -1,5 +1,5 @@
 extern crate rand;
-use rand::thread_rng;
+use rand::{Rng, thread_rng};
 use rand::seq::SliceRandom;
 
 mod game_manager;
@@ -11,52 +11,111 @@ use strategy::*;
 mod tournament;
 use tournament::*;
 
-fn last_move(board: &Board, dice: usize) -> usize {
-    *board.possible_moves(dice).last().unwrap()
+mod reinforcement_learning;
+use reinforcement_learning::*;
+
+struct LastMove {}
+impl Player for LastMove {
+    fn choose_move(&mut self, board: &Board, dice: usize) -> usize {
+        *board.possible_moves(dice).last().unwrap()
+    }
 }
 
-fn rand_move(board: &Board, dice: usize) -> usize {
-    let mut rng = thread_rng();
-    *board.possible_moves(dice).choose(&mut rng).unwrap()
+struct RandMove<R: Rng> {
+    rng: R,
+}
+impl<R: Rng> Player for RandMove<R> {
+    fn choose_move(&mut self, board: &Board, dice: usize) -> usize {
+        *board.possible_moves(dice).choose(&mut self.rng).unwrap()
+    }
 }
 
-fn greedy(board: &Board, dice: usize) -> usize {
-    let moves = board.possible_moves(dice);
-    let adv = 1 - board.turn;
-    for &place in moves.iter().rev() {
-        if is_central(place + dice) && board.cells[adv][place + dice] {
-            return place;
+struct Greedy {}
+impl Player for Greedy {
+    fn choose_move(&mut self, board: &Board, dice: usize) -> usize {
+        let moves = board.possible_moves(dice);
+        let adv = 1 - board.turn;
+        for &place in moves.iter().rev() {
+            if is_central(place + dice) && board.cells[adv][place + dice] {
+                return place;
+            }
         }
-    }
-    for &place in moves.iter().rev() {
-        if is_rosetta(place + dice) || (place == ENTER && dice == 4) {
-            return place;
+        for &place in moves.iter().rev() {
+            if is_rosetta(place + dice) || (place == ENTER && dice == 4) {
+                return place;
+            }
         }
+        *moves.last().unwrap()
     }
-    *moves.last().unwrap()
 }
 
-const DEPTH: u32 = 3;
-fn expectimax_choose(board: &Board, dice: usize) -> usize {
-    let moves = board.possible_moves(dice);
-    let mut best = moves[0];
-    let h = SimpleHeuristic {};
-    let mut best_val = eval_move(&h, board, dice, moves[0], DEPTH - 1);
-    for &place in moves.iter().skip(1) {
-        let val = eval_move(&h, board, dice, place, DEPTH - 1);
-        if val > best_val {
-            best_val = val;
-            best = place;
-        }
-    }
+struct ExpectimaxPlayer<H: Heuristic> {
+    h: H,
+    depth: u32,
+}
 
-    best
+impl<H: Heuristic> Player for ExpectimaxPlayer<H> {
+    fn choose_move(&mut self, board: &Board, dice: usize) -> usize {
+        let moves = board.possible_moves(dice);
+        let mut best = moves[0];
+        let mut best_val = eval_move(&self.h, board, dice, moves[0], self.depth - 1);
+        for &place in moves.iter().skip(1) {
+            let val = eval_move(&self.h, board, dice, place, self.depth - 1);
+            if val > best_val {
+                best_val = val;
+                best = place;
+            }
+        }
+
+        best
+    }
 }
 
 fn main() {
-    let res = showdown(expectimax_choose, greedy, 500);
-    println!("Expectimax : {}/1000", res[0]);
-    println!("Greedy move: {}/1000", res[1]);
+    let rand_move = RandMove {rng: thread_rng()};
+    let last_move = LastMove {};
+    let res = showdown(rand_move, last_move, 500);
+    println!("Random move: {}/1000", res[0]);
+    println!("Last move  : {}/1000\n", res[1]);
+
+    let greedy = Greedy {};
+    let last_move = LastMove {};
+    let res = showdown(greedy, last_move, 500);
+    println!("Greedy   : {}/1000", res[0]);
+    println!("Last move: {}/1000\n", res[1]);
+
+    let linear_eval = LinearEval0 {
+        val_ready: -0.11500916,
+        val_cells: [
+           -0.07836597,
+           -0.06630784,
+           -0.053295016,
+           -0.06753837,
+           -0.054491982,
+           -0.053376794,
+           -0.036632307,
+           0.054832537,
+           0.006475265,
+           0.02226811,
+           0.044687957,
+           0.07274747,
+           0.112757705,
+           0.085373685],
+        val_out: 0.12581697,
+        player_adv: 0.027448557
+    };
+
+    let advancement = ExpectimaxPlayer {
+        h: SimpleHeuristic {},
+        depth: 4,
+    };
+    let linear_player = ExpectimaxPlayer {
+        h: linear_eval,
+        depth: 4,
+    };
+    let res = showdown(advancement, linear_player, 500);
+    println!("Advancement: {}/1000", res[0]);
+    println!("Linear     : {}/1000", res[1]);
     // TODO: move in test module
     /*
     let mut board = Board {
